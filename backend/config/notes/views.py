@@ -5,7 +5,12 @@ from rest_framework import status
 from .models import Note
 from .serializers import NoteSerializer
 from django.shortcuts import get_object_or_404
-
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.serializers import Serializer
+from .permissions import IsOwnerOrReadOnly
+from .pagination import NotePagination
 
 
 class NoteListAPIView(APIView):
@@ -54,3 +59,29 @@ class NoteDetailAPIView(APIView):
         note.delete()
         
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+class NoteListGenericAPIView(ListCreateAPIView):
+    queryset = Note.objects.all()
+    serializer_class = NoteSerializer
+    
+    
+class NoteDetailGenericAPIView(RetrieveUpdateDestroyAPIView):
+    queryset = Note.objects.all()
+    serializer_class = NoteSerializer
+    
+    
+class NoteViewSet(ModelViewSet):
+    queryset = Note.objects.all()
+    serializer_class = NoteSerializer
+    pagination_class = NotePagination
+    filterset_fields = ["category"]
+    search_fields = ["title", "content", "category"]
+    ordering_fields = ["created_at", "updated_at", "title", "category"]
+    
+    def get_permissions(self):
+        if self.request.method == "GET":
+            return [IsOwnerOrReadOnly()]
+        return [IsAuthenticated(), IsOwnerOrReadOnly()]
+    
+    def perform_create(self, serializer: Serializer):
+        serializer.save(owner=self.request.user)
