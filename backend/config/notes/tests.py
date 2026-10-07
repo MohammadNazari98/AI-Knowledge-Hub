@@ -264,3 +264,29 @@ class NoteAPITestCase(APITestCase):
         response = self.client.get(self.url+"?page_size=6")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 4)
+        
+    def test_validate_title_and_return_error_if_title_is_invalid(self):
+        user = User.objects.create_user(username="testuser", password="testpassword")
+        self.client.force_login(user=user)
+        
+        response = self.client.post(self.url, data={
+            "title": "test",
+            "content": "test",
+            "category": "cate"
+        })
+        
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["title"][0], "Title must be at least 5 characters long.")
+        
+    def test_validate_category_and_return_error_if_category_is_invalid(self):
+        user = User.objects.create_user(username="testuser", password="testpassword")
+        self.client.force_login(user=user)
+        
+        response = self.client.post(self.url, data={
+            "title": "testtitle",
+            "content": "testcontent",
+            "category": "AI"
+        })
+        
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["category"][0], "Category must be at least 3 characters long.")

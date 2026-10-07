@@ -16,3 +16,8 @@ db.sqlite3
 # IDE
 .vscode/
 .idea/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/

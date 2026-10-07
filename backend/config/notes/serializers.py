@@ -13,8 +13,8 @@ class NoteSerializer(serializers.ModelSerializer):
         return value
     
     def validate_category(self, value: str):
-        if len(value.strip()) < 1:
-            raise serializers.ValidationError("Category must be at least 1 characters long.")
+        if len(value.strip()) < 3:
+            raise serializers.ValidationError("Category must be at least 3 characters long.")
         return value
     
     def validate(self, attrs):
