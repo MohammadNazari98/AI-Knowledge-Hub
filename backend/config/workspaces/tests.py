@@ -102,6 +102,10 @@ class WorkspaceAPITests(TestCase):
         })
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
+    def test_workspaces_str_returns_name(self):
+        workspace = Workspace.objects.create(name="AI Team")
+        self.assertEqual(str(workspace), "AI Team")
+        
     def tearDown(self):
         self.client.logout()
         self.user_A = None

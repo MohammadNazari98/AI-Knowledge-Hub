@@ -10,7 +10,7 @@ class workspaceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return Workspace.objects.filter(members=self.request.user).distinct()
+        return Workspace.objects.filter(members=self.request.user).distinct().order_by("id")
     
     def perform_create(self, serializer: Serializer):
         workspace = serializer.save()
