@@ -39,7 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     "rest_framework",
     "notes",
-    "django_filters"
+    "django_filters",
+    "workspaces"
 ]
 
 REST_FRAMEWORK = {
