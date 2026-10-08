@@ -90,6 +90,18 @@ class WorkspaceAPITests(TestCase):
         self.assertEqual(response.data["results"][0]["name"], "personal")
         self.assertEqual(response.data["count"], 1)
         
+    def test_unauthenticated_user_cannot_list_workspaces(self):
+        self.client.logout()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        
+    def test_unauthenticated_user_cannot_create_workspace(self):
+        self.client.logout()
+        response = self.client.post(self.url, {
+            "name": "test workspace"
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        
     def tearDown(self):
         self.client.logout()
         self.user_A = None
