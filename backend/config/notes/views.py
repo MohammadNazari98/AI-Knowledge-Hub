@@ -71,7 +71,7 @@ class NoteDetailGenericAPIView(RetrieveUpdateDestroyAPIView):
     
     
 class NoteViewSet(ModelViewSet):
-    queryset = Note.objects.all()
+    queryset = Note.objects.all().order_by("-created_at")
     serializer_class = NoteSerializer
     pagination_class = NotePagination
     filterset_fields = ["category"]
