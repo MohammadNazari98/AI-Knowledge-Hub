@@ -40,7 +40,8 @@ INSTALLED_APPS = [
     "rest_framework",
     "notes",
     "django_filters",
-    "workspaces"
+    "workspaces",
+    "knowledge_bases"
 ]
 
 REST_FRAMEWORK = {
