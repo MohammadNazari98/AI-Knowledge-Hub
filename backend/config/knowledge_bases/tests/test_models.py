@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.contrib.auth.models import User
-from .models import KnowledgeBase
+from knowledge_bases.models import KnowledgeBase
 from workspaces.models import Workspace
 from django.db.models.deletion import ProtectedError
 
