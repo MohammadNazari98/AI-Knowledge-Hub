@@ -1,6 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import User
 from knowledge_bases.models import KnowledgeBase
+from pathlib import Path
+from django.core.exceptions import ValidationError
+
 
 class Document(models.Model):
     class Status(models.TextChoices):
@@ -25,3 +28,17 @@ class Document(models.Model):
     
     def __str__(self):
         return self.title
+    
+    def clean(self):
+        super().clean()
+        if self.file:
+            extension = Path(self.file.name).suffix.lower().lstrip(".")
+            if extension != self.file_type:
+                raise ValidationError({
+                    "The file type does not match the file extension."
+                })
+                
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["knowledge_base", "title"], name="unique_document_title_per_knowledge_base")
+        ]
