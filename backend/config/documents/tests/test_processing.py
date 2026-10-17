@@ -9,6 +9,7 @@ from io import BytesIO
 from reportlab.pdfgen import canvas
 from documents.services.exceptions import DocumentProcessingError
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 
 
@@ -26,6 +27,7 @@ def test_text_extractor_processes_when_retrieves_txt_file_and_return_str_text_co
     
     assert text_extracted == "Hello world!"
     
+@pytest.mark.django_db
 @pytest.mark.django_db
 def test_text_extractor_processes_when_retrieves_pdf_file_and_return_str_text_correctly():
     user = User.objects.create_user(username="usertestA", password="passwordtestA")
@@ -50,7 +52,172 @@ def test_text_extractor_processes_when_retrieves_pdf_file_and_return_str_text_co
     assert text_extracted == "This is a text pdf.\n"
     
 def test_text_extractor_processes_when_retrieves_file_unsupported_and_return_error_correctly():
-    document = SimpleNamespace(file_type="malware")
+    document = SimpleNamespace(file_type="malware", file="malware", save=Mock())
     document_processor = DocumentProcessor()
     with pytest.raises(DocumentProcessingError):
         document_processor.process(document=document)
+        
+        
+def test_file_type_by_using_mock():
+    document_processor = DocumentProcessor()
+    
+    extractor = Mock()
+    
+    extractor.extract.return_value = "Hello from mock"
+    
+    document_processor.extractors["txt"] = extractor
+    
+    document = SimpleNamespace(file_type="txt", file="fake file", save=Mock())
+    
+    result = document_processor.process(document=document)
+    
+    assert result == "Hello from mock"
+    
+    extractor.extract.assert_called_once_with(document.file)
+    
+def test_file_type_raise_error_by_using_mock():
+    document_processor = DocumentProcessor()
+    extractor = Mock()
+    extractor.extract.side_effect = DocumentProcessingError()
+    
+    document_processor.extractors["txt"] = extractor
+    
+    document = SimpleNamespace(file_type="txt", file="malware", save=Mock())
+    
+    with pytest.raises(DocumentProcessingError):        
+        document_processor.process(document=document)
+    extractor.extract.assert_called_once_with(document.file)
+    
+@pytest.mark.django_db
+def test_text_extractor_processes_when_retrieves_txt_file_and_save_to_database_correctly():
+    user = User.objects.create_user(username="usertestA", password="passwordtestA")
+    workspace = Workspace.objects.create(name="Python AI")
+    workspace.members.add(user)
+    knowledge_base = KnowledgeBase.objects.create(name="Python AI", workspace=workspace, created_by=user)
+    file = BytesIO(b"Hello, This is a text file.")
+    txt_file = SimpleUploadedFile("test_file.txt", content=file.getvalue())
+    document = Document.objects.create(title="python expert", knowledge_base=knowledge_base, file=txt_file, file_type=Document.FileType.TXT, created_by=user)
+    
+    document_processor = DocumentProcessor()
+    extractor = Mock()
+    extractor.extract.return_value = "Hello, This is a text file."
+    document_processor.extractors["txt"] = extractor
+    document_processor.process(document=document)
+    document.refresh_from_db()
+    assert document.content == "Hello, This is a text file."
+    assert document.status == document.Status.PROCESSED
+
+@pytest.mark.django_db
+def test_text_extractor_processes_when_retrieves_pdf_file_and_save_to_database_correctly():
+    user = User.objects.create_user(username="usertestA", password="passwordtestA")
+    workspace = Workspace.objects.create(name="Python AI")
+    workspace.members.add(user)
+    knowledge_base = KnowledgeBase.objects.create(name="Python AI", workspace=workspace, created_by=user)
+    pdf_file = BytesIO()
+    pdf = canvas.Canvas(pdf_file)
+    pdf.drawString(50, 250, "This is a text pdf.")
+    pdf.save()
+    pdf_file.seek(0)
+    file_uploaded = SimpleUploadedFile(name="python_expert.pdf", content=pdf_file.getvalue())
+    document = Document.objects.create(title="python expert", 
+                                    knowledge_base=knowledge_base,
+                                    file=file_uploaded,
+                                    file_type=Document.FileType.PDF,
+                                    created_by=user)
+    
+    document_processor = DocumentProcessor()
+    extractor = Mock()
+    extractor.extract.return_value = "This is a text pdf."
+    document_processor.extractors["pdf"] = extractor
+    document_processor.process(document=document)
+    
+    document.refresh_from_db()
+    
+    assert document.content == "This is a text pdf."
+    assert document.status == document.Status.PROCESSED
+    
+def test_text_extractor_processes_when_retrieves_file_unsupported_and_save_to_database_correctly():
+    document_processor = DocumentProcessor()
+    extractor = Mock()
+    extractor.extract.side_effect = DocumentProcessingError()
+    document = SimpleNamespace(file_type="txt", file="malware", save=Mock())
+    document_processor.extractors["txt"] = extractor
+    with pytest.raises(DocumentProcessingError):
+        document_processor.process(document=document)
+    
+    extractor.extract.assert_called_once_with(document.file)
+    assert document.status == Document.Status.FAILED
+    assert document.content == ''
+    
+@pytest.mark.django_db
+def test_document_processor_sets_failed_status_in_database_when_extraction_fails():
+    user = User.objects.create_user(username="usertestA", password="passwordtestA")
+    workspace = Workspace.objects.create(name="Python AI")
+    workspace.members.add(user)
+    knowledge_base = KnowledgeBase.objects.create(name="Python AI", workspace=workspace, created_by=user)
+    txt_file = BytesIO(b"This is a text file.")    
+    file_uploaded = SimpleUploadedFile(name="test_file.pdf", content=txt_file.getvalue())
+    document = Document.objects.create(title="python expert", 
+                                    knowledge_base=knowledge_base,
+                                    file=file_uploaded,
+                                    file_type=Document.FileType.PDF,
+                                    created_by=user)
+    
+    document_processor = DocumentProcessor()
+    
+    with pytest.raises(DocumentProcessingError):
+        document_processor.process(document=document)
+    
+    document.refresh_from_db()
+    
+    assert document.status == Document.Status.FAILED
+    assert document.content == ''
+    
+@pytest.mark.django_db
+def test_document_processor_sets_processing_status_in_database_when_extract_file_pdf():
+    user = User.objects.create_user(username="usertestA", password="passwordtestA")
+    workspace = Workspace.objects.create(name="Python AI")
+    workspace.members.add(user)
+    knowledge_base = KnowledgeBase.objects.create(
+        name="Python AI",
+        workspace=workspace,
+        created_by=user,
+    )
+
+    pdf_file = BytesIO()
+    pdf = canvas.Canvas(pdf_file)
+    pdf.drawString(50, 250, "This is a test PDF file.")
+    pdf.save()
+    pdf_file.seek(0)
+
+    uploaded_file = SimpleUploadedFile(
+        name="test_file.pdf",
+        content=pdf_file.getvalue(),
+    )
+
+    document = Document.objects.create(
+        title="python expert",
+        knowledge_base=knowledge_base,
+        file=uploaded_file,
+        file_type=Document.FileType.PDF,
+        created_by=user,
+    )
+
+    document_processor = DocumentProcessor()
+    extractor = Mock()
+
+    def extract_and_check_status(file):
+        document.refresh_from_db()
+        assert document.status == Document.Status.PROCESSING
+        return "This is a test PDF file.\n"
+
+    extractor.extract.side_effect = extract_and_check_status
+    document_processor.extractors["pdf"] = extractor
+
+    result = document_processor.process(document)
+
+    document.refresh_from_db()
+
+    assert result == "This is a test PDF file.\n"
+    assert document.status == Document.Status.PROCESSED
+    extractor.extract.assert_called_once_with(document.file)
