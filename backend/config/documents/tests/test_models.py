@@ -151,3 +151,12 @@ class DocumentModelTest(TestCase):
         
         user_c = User.objects.create_user(username="testuserC", password="testpasswordC")
         self.assertFalse(document_a.knowledge_base.workspace.members.filter(pk=user_c.pk).exists())
+        
+    def test_document_get_str_title_correctly(self):
+        uploaded_file = SimpleUploadedFile("AI.pdf", b"content test", content_type="application/pdf")
+        document_a = Document.objects.create(title="AI Fundamentals", 
+                                        knowledge_base=self.knowledge_a, 
+                                        file=uploaded_file,
+                                        file_type=Document.FileType.PDF,
+                                        created_by=self.user_a)
+        assert str(document_a) == "AI Fundamentals"

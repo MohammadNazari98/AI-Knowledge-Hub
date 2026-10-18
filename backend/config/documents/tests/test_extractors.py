@@ -61,3 +61,13 @@ def test_pdf_extractor_raises_error_for_invalid_pdf():
     
     with pytest.raises(DocumentProcessingError):
         extractor.extract(invalid_file)
+
+def test_pdf_extractor_returns_empty_string_for_pdf_without_text():
+    pdf_file = BytesIO()
+    pdf = canvas.Canvas(pdf_file)
+    pdf.save()
+    pdf_file.seek(0)
+    extractor = PDFExtractor()
+    result = extractor.extract(pdf_file)
+    
+    assert result == ""

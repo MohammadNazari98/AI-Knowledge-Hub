@@ -2,6 +2,7 @@ from .pdf import PDFExtractor
 from .txt import TXTExtractor
 from documents.services.exceptions import DocumentProcessingError
 from documents.models import Document
+from documents.services.validators import FileValidator
 
 
 
@@ -12,6 +13,7 @@ class DocumentProcessor:
             "pdf": PDFExtractor(),
             "txt": TXTExtractor()
         }
+        self.validator = FileValidator()
         
     def process(self, document: Document)->str:
         try:
@@ -20,6 +22,8 @@ class DocumentProcessor:
             
             if extractor is None:
                 raise DocumentProcessingError(f"Unsupported document type: {file_type}")
+            
+            self.validator.validate(document.file)
             
             document.status = Document.Status.PROCESSING
             document.save()

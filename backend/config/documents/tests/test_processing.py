@@ -5,11 +5,13 @@ from knowledge_bases.models import KnowledgeBase
 from documents.models import Document
 from django.core.files.uploadedfile import SimpleUploadedFile
 from documents.services.extractors.processor import DocumentProcessor
+from documents.services.validators import FileValidator
 from io import BytesIO
 from reportlab.pdfgen import canvas
 from documents.services.exceptions import DocumentProcessingError
 from types import SimpleNamespace
 from unittest.mock import Mock
+
 
 
 
@@ -26,8 +28,7 @@ def test_text_extractor_processes_when_retrieves_txt_file_and_return_str_text_co
     text_extracted = document_processor.process(document=document)
     
     assert text_extracted == "Hello world!"
-    
-@pytest.mark.django_db
+
 @pytest.mark.django_db
 def test_text_extractor_processes_when_retrieves_pdf_file_and_return_str_text_correctly():
     user = User.objects.create_user(username="usertestA", password="passwordtestA")
@@ -67,6 +68,8 @@ def test_file_type_by_using_mock():
     
     document_processor.extractors["txt"] = extractor
     
+    document_processor.validator = Mock()
+    
     document = SimpleNamespace(file_type="txt", file="fake file", save=Mock())
     
     result = document_processor.process(document=document)
@@ -81,6 +84,8 @@ def test_file_type_raise_error_by_using_mock():
     extractor.extract.side_effect = DocumentProcessingError()
     
     document_processor.extractors["txt"] = extractor
+    
+    document_processor.validator = Mock()
     
     document = SimpleNamespace(file_type="txt", file="malware", save=Mock())
     
@@ -140,6 +145,9 @@ def test_text_extractor_processes_when_retrieves_file_unsupported_and_save_to_da
     document_processor = DocumentProcessor()
     extractor = Mock()
     extractor.extract.side_effect = DocumentProcessingError()
+    
+    document_processor.validator = Mock()
+    
     document = SimpleNamespace(file_type="txt", file="malware", save=Mock())
     document_processor.extractors["txt"] = extractor
     with pytest.raises(DocumentProcessingError):
@@ -221,3 +229,181 @@ def test_document_processor_sets_processing_status_in_database_when_extract_file
     assert result == "This is a test PDF file.\n"
     assert document.status == Document.Status.PROCESSED
     extractor.extract.assert_called_once_with(document.file)
+    
+    
+@pytest.mark.django_db
+def test_document_processor_saves_empty_content_for_pdf_without_text():
+    user = User.objects.create_user(
+        username="empty_pdf_user",
+        password="passwordtestA",
+    )
+    workspace = Workspace.objects.create(name="Empty PDF Workspace")
+    workspace.members.add(user)
+
+    knowledge_base = KnowledgeBase.objects.create(
+        name="Empty PDF Knowledge Base",
+        workspace=workspace,
+        created_by=user,
+    )
+
+    pdf_file = BytesIO()
+    pdf = canvas.Canvas(pdf_file)
+    pdf.save()
+    pdf_file.seek(0)
+
+    uploaded_file = SimpleUploadedFile(
+        name="empty.pdf",
+        content=pdf_file.getvalue(),
+    )
+
+    document = Document.objects.create(
+        title="Empty PDF",
+        knowledge_base=knowledge_base,
+        file=uploaded_file,
+        file_type=Document.FileType.PDF,
+        created_by=user,
+    )
+
+    processor = DocumentProcessor()
+    result = processor.process(document)
+
+    document.refresh_from_db()
+
+    assert result == ""
+    assert document.content == ""
+    assert document.status == Document.Status.PROCESSED
+    
+@pytest.mark.django_db
+def test_document_processor_rejects_pdf_with_invalid_content():
+    user = User.objects.create_user(
+            username="empty_pdf_user",
+            password="passwordtestA",
+        )
+    workspace = Workspace.objects.create(name="Empty PDF Workspace")
+    workspace.members.add(user)
+
+    knowledge_base = KnowledgeBase.objects.create(
+        name="Empty PDF Knowledge Base",
+        workspace=workspace,
+        created_by=user,
+    )
+    
+    uploaded_file = SimpleUploadedFile("malware.pdf", b"This is not a pdf", content_type="application/pdf")
+    
+    document = Document.objects.create(title="HACKED",
+            knowledge_base=knowledge_base,
+            file=uploaded_file,
+            file_type=Document.FileType.PDF,
+            created_by=user)
+    
+    document_processor = DocumentProcessor()
+    
+    with pytest.raises(DocumentProcessingError):
+        document_processor.process(document)
+        
+    document.refresh_from_db()
+    
+    assert document.status == Document.Status.FAILED
+    assert document.content == ''
+    
+    
+@pytest.mark.django_db
+def test_document_processor_does_not_extract_invalid_pdf():
+    user = User.objects.create_user(
+                username="invaliduserA",
+                password="passwordtestA",
+            )
+    workspace = Workspace.objects.create(name="Invalid PDF Workspace")
+    workspace.members.add(user)
+
+    knowledge_base = KnowledgeBase.objects.create(
+        name="Invalid PDF Knowledge Base",
+        workspace=workspace,
+        created_by=user,
+    )
+    
+    uploaded_file = SimpleUploadedFile("malware.pdf", b"This is not a real pdf file", content_type="application/pdf")
+    
+    document = Document.objects.create(title="Invalid PDF",
+            knowledge_base=knowledge_base,
+            file=uploaded_file,
+            file_type=Document.FileType.PDF,
+            created_by=user)
+    
+    document_processor = DocumentProcessor()
+    extractor = Mock()
+    document_processor.extractors["pdf"] = extractor
+    with pytest.raises(DocumentProcessingError):
+        document_processor.process(document)
+        
+    document.refresh_from_db()
+    assert document.status == Document.Status.FAILED
+    assert document.content == ''
+    extractor.extract.assert_not_called()
+    
+@pytest.mark.django_db
+def test_document_processor_does_not_extract_oversized_txt():
+    user = User.objects.create_user(
+                    username="testuserA",
+                    password="passwordtestA",
+                )
+    workspace = Workspace.objects.create(name="test Workspace")
+    workspace.members.add(user)
+
+    knowledge_base = KnowledgeBase.objects.create(
+        name="test Knowledge Base",
+        workspace=workspace,
+        created_by=user,
+    )
+    
+    oversized_content = b'A'*(FileValidator.MAX_FILE_SIZE+1)
+    uploaded_file = SimpleUploadedFile("malware.txt",oversized_content)
+    
+    document = Document.objects.create(title="test deep learning",
+            knowledge_base=knowledge_base,
+            file=uploaded_file,
+            file_type=Document.FileType.TXT,
+            created_by=user)
+    
+    document_processor = DocumentProcessor()
+    
+    extractor = Mock()
+    
+    document_processor.extractors["txt"] = extractor
+    
+    with pytest.raises(DocumentProcessingError): 
+        document_processor.process(document)
+        
+    assert document.status == Document.Status.FAILED
+    assert document.content == ''
+    extractor.extract.assert_not_called()
+
+@pytest.mark.django_db
+def test_validate_content_rejects_invalid_txt_encoding():
+    user = User.objects.create_user(
+                        username="testuserA",
+                        password="passwordtestA",
+                    )
+    workspace = Workspace.objects.create(name="test Workspace")
+    workspace.members.add(user)
+
+    knowledge_base = KnowledgeBase.objects.create(
+        name="test Knowledge Base",
+        workspace=workspace,
+        created_by=user,
+    )
+    
+    
+    uploaded_file = SimpleUploadedFile("test.txt",b"\xff\xfe\xfa")
+    
+    document = Document.objects.create(title="test deep learning",
+            knowledge_base=knowledge_base,
+            file=uploaded_file,
+            file_type=Document.FileType.TXT,
+            created_by=user)
+    
+    document_processor = DocumentProcessor()
+    
+    with pytest.raises(DocumentProcessingError, match="Invalid TXT file encoding"):
+        document_processor.process(document=document)
+    
