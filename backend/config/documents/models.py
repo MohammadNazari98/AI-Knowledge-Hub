@@ -4,7 +4,6 @@ from knowledge_bases.models import KnowledgeBase
 from pathlib import Path
 from django.core.exceptions import ValidationError
 
-
 class Document(models.Model):
     class Status(models.TextChoices):
         UPLOADED = "فایل آپلود شده."

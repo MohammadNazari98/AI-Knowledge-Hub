@@ -19,4 +19,6 @@ class KnowledgeBaseSerializer(serializers.ModelSerializer):
         
         if not user_workspace:
             raise ValidationError("Error validation, workspace chosen not found.")
-        return value        
+        return value
+    
+    

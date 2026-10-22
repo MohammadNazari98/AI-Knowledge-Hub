@@ -7,10 +7,10 @@ class TextChunker:
     """Split text into overlapping character-based chunks."""
     
     def __init__(self, chunk_size: int = 300, chunk_overlap=50):
-        if chunk_size < 0:
+        if chunk_size <= 0:
             raise ValueError("chunk_size must be greater than zero.")
         
-        if chunk_overlap <= 0:
+        if chunk_overlap < 0:
             raise ValueError("chunk_overlap cannot be negative.")
         
         if chunk_overlap >= chunk_size:

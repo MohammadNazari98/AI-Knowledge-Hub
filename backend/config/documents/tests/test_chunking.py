@@ -37,7 +37,7 @@ def test_short_text_returns_one_chunks():
 @pytest.mark.parametrize(
     ("chunk_size", "chunk_overlap"),
     [
-        (10, 0),
+        (10, -2),
         (5, -1)
     ]
 )       
