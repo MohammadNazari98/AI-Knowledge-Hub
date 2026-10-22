@@ -5,7 +5,7 @@ from .serializers import KnowledgeBaseSerializer
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.serializers import Serializer
 from rest_framework.decorators import action
-from rest_framework.request import HttpRequest
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework import status
 from documents.services.retrieval import KeywordRetriever
@@ -24,10 +24,17 @@ class KnowledgeBaseAPIViewSet(ModelViewSet):
         serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=["get"])
-    def search(self, request: HttpRequest, pk: int=None):
-        query = request.GET.get("q","")
+    def search(self, request: Request, pk: int=None):
+        query = request.query_params.get("q", "").strip()
+
+        if not query:
+            return Response("Validation error, The search query cannot be empty.", status=status.HTTP_400_BAD_REQUEST)
+
         keyword_retrieval = KeywordRetriever()
-        results = list(keyword_retrieval.search(knowledge_id=pk, query=query))
+
+        knowledge_base = self.get_object()
+
+        results = keyword_retrieval.search(knowledge_id=knowledge_base.id, query=query)
 
         serializer = DocumentChunkSerializer(results, many=True)
 
