@@ -4,6 +4,9 @@ from workspaces.models import Workspace
 from knowledge_bases.models import KnowledgeBase
 from rest_framework.test import APIClient
 from rest_framework import status
+from django.core.files.uploadedfile import SimpleUploadedFile
+from documents.models import Document
+from documents.services.extractors.processor import DocumentProcessor
 
 
 @pytest.mark.django_db
@@ -224,3 +227,152 @@ def test_user_a_can_delete_knowledge_base_and_must_return_204(client: APIClient)
     
     assert response.status_code == status.HTTP_204_NO_CONTENT
     assert KnowledgeBase.objects.filter(pk=knowledge_a.id).exists() == False
+
+@pytest.mark.django_db
+def test_user_can_search_the_query_in_the_knowledge_and_return_200(client: APIClient):
+    user_a = User.objects.create_user(username="testuserA", password="testpasswordA")
+            
+    workspace_a = Workspace.objects.create(name="Data science")
+    workspace_a.members.add(user_a)
+    
+    knowledge_a = KnowledgeBase.objects.create(name="Deep learning", 
+                                            workspace=workspace_a,
+                                            created_by=user_a)
+    
+    file_uploaded = SimpleUploadedFile("test.txt", "هوش مصنوعی در پزشکی".encode("utf-8"))
+    document = Document.objects.create(title="ai basic", knowledge_base=knowledge_a, file=file_uploaded, file_type=Document.FileType.TXT, created_by=user_a)
+    document_processor = DocumentProcessor()
+    document_processor.process(document)
+    client.force_login(user=user_a)
+        
+    response = client.get(f"/api/knowledge-bases/{knowledge_a.id}/search/?q=هوش مصنوعی")    
+    
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.data) > 0
+    
+@pytest.mark.django_db
+def test_user_cannot_search_empty_the_query_in_the_knowledge_and_return_400(client: APIClient):
+    user_a = User.objects.create_user(username="testuserA", password="testpasswordA")
+
+    workspace_a = Workspace.objects.create(name="Data science")
+    workspace_a.members.add(user_a)
+
+    knowledge_a = KnowledgeBase.objects.create(name="Deep learning", 
+                                            workspace=workspace_a,
+                                            created_by=user_a)
+
+    file_uploaded = SimpleUploadedFile("test.txt", "هوش مصنوعی در پزشکی".encode("utf-8"))
+    document = Document.objects.create(title="ai basic", knowledge_base=knowledge_a, file=file_uploaded, file_type=Document.FileType.TXT, created_by=user_a)
+    document_processor = DocumentProcessor()
+    document_processor.process(document)
+    client.force_login(user=user_a)
+    
+    response = client.get(f"/api/knowledge-bases/{knowledge_a.id}/search/?q=")
+        
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    
+@pytest.mark.django_db
+def test_user_b_cannot_search_the_query_from_another_knowledge_and_return_404(client: APIClient):
+    user_a = User.objects.create_user(username="testuserA", password="testpasswordA")
+
+    workspace_a = Workspace.objects.create(name="Data science")
+    workspace_a.members.add(user_a)
+
+    knowledge_a = KnowledgeBase.objects.create(name="Deep learning", 
+                                            workspace=workspace_a,
+                                            created_by=user_a)
+
+    file_uploaded = SimpleUploadedFile("test.txt", "هوش مصنوعی در پزشکی".encode("utf-8"))
+    document = Document.objects.create(title="ai basic", knowledge_base=knowledge_a, file=file_uploaded, file_type=Document.FileType.TXT, created_by=user_a)
+    document_processor = DocumentProcessor()
+    document_processor.process(document)
+    
+    user_b = User.objects.create_user(username="testuserB", password="testpasswordB")
+    workspace_b = Workspace.objects.create(name="Python developer")
+    workspace_b.members.add(user_b)
+    
+    knowledge_b = KnowledgeBase.objects.create(name="python expert", 
+                                                workspace=workspace_b,
+                                                created_by=user_b)
+    
+    client.force_login(user=user_b)
+        
+    response = client.get(f"/api/knowledge-bases/{knowledge_a.id}/search/?q=هوش مصنوعی")
+        
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    
+
+@pytest.mark.django_db
+def test_user_a_gets_empty_results_when_query_does_not_match_any_chunk(client: APIClient):
+    user_a = User.objects.create_user(username="testuserA", password="testpasswordA")
+
+    workspace_a = Workspace.objects.create(name="Data science")
+    workspace_a.members.add(user_a)
+
+    knowledge_a = KnowledgeBase.objects.create(name="Deep learning", 
+                                            workspace=workspace_a,
+                                            created_by=user_a)
+
+    file_uploaded = SimpleUploadedFile("test.txt", "هوش مصنوعی در پزشکی".encode("utf-8"))
+    document = Document.objects.create(title="ai basic", knowledge_base=knowledge_a, file=file_uploaded, file_type=Document.FileType.TXT, created_by=user_a)
+    document_processor = DocumentProcessor()
+    document_processor.process(document)
+    
+    client.force_login(user=user_a)
+            
+    response = client.get(f"/api/knowledge-bases/{knowledge_a.id}/search/?q=توسعه وب")
+    
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data == []
+    
+@pytest.mark.django_db
+def test_user_a_cannot_search_the_query_document_status_processing_in_the_knowledge_and_return_200(client: APIClient):
+    user_a = User.objects.create_user(username="testuserA", password="testpasswordA")
+
+    workspace_a = Workspace.objects.create(name="Data science")
+    workspace_a.members.add(user_a)
+
+    knowledge_a = KnowledgeBase.objects.create(name="Deep learning", 
+                                            workspace=workspace_a,
+                                            created_by=user_a)
+
+    file_uploaded = SimpleUploadedFile("test.txt", "هوش مصنوعی در پزشکی".encode("utf-8"))
+    document = Document.objects.create(title="ai basic", knowledge_base=knowledge_a, file=file_uploaded, file_type=Document.FileType.TXT, created_by=user_a, status=Document.Status.PROCESSING)
+    
+    client.force_login(user=user_a)
+            
+    response = client.get(f"/api/knowledge-bases/{knowledge_a.id}/search/?q=هوش مصنوعی")
+    
+    assert response.status_code == status.HTTP_200_OK
+    assert document.status == Document.Status.PROCESSING
+    assert len(response.data) == 0
+    
+@pytest.mark.django_db
+def test_user_a_search_the_query_by_high_rating_in_the_knowledge_and_return_200(client: APIClient):
+    user_a = User.objects.create_user(username="testuserA", password="testpasswordA")
+
+    workspace_a = Workspace.objects.create(name="Data science")
+    workspace_a.members.add(user_a)
+
+    knowledge_a = KnowledgeBase.objects.create(name="Deep learning", 
+                                            workspace=workspace_a,
+                                            created_by=user_a)
+
+    file_uploaded = SimpleUploadedFile("test.txt", "هوش مصنوعی در پزشکی".encode("utf-8"))
+    document = Document.objects.create(title="ai basic", knowledge_base=knowledge_a, file=file_uploaded, file_type=Document.FileType.TXT, created_by=user_a)
+    document_processor = DocumentProcessor()
+    document_processor.process(document)
+    
+    file_uploaded_2 = SimpleUploadedFile("test.txt", "هوش در پزشکی با یادگیری ماشین".encode("utf-8"))
+    document_2 = Document.objects.create(title="medical in machine learning", knowledge_base=knowledge_a, file=file_uploaded_2, file_type=Document.FileType.TXT, created_by=user_a)
+    document_processor.process(document_2)
+    
+    client.force_login(user=user_a)
+    
+    response = client.get(f"/api/knowledge-bases/{knowledge_a.id}/search/?q=هوش مصنوعی")
+    
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.data) > 0
+    assert response.data[0]['score'] > response.data[1]['score']
+    assert response.data[0]["score"] == 2
+    assert response.data[1]["score"] == 1
