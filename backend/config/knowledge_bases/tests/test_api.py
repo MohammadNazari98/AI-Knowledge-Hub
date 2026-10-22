@@ -5,8 +5,9 @@ from knowledge_bases.models import KnowledgeBase
 from rest_framework.test import APIClient
 from rest_framework import status
 from django.core.files.uploadedfile import SimpleUploadedFile
-from documents.models import Document
+from documents.models import Document, DocumentChunk
 from documents.services.extractors.processor import DocumentProcessor
+
 
 
 @pytest.mark.django_db
@@ -339,6 +340,11 @@ def test_user_a_cannot_search_the_query_document_status_processing_in_the_knowle
     file_uploaded = SimpleUploadedFile("test.txt", "هوش مصنوعی در پزشکی".encode("utf-8"))
     document = Document.objects.create(title="ai basic", knowledge_base=knowledge_a, file=file_uploaded, file_type=Document.FileType.TXT, created_by=user_a, status=Document.Status.PROCESSING)
     
+    DocumentChunk.objects.create(
+        document=document,
+        content="هوش مصنوعی در پزشکی",
+        index=0,
+    )
     client.force_login(user=user_a)
             
     response = client.get(f"/api/knowledge-bases/{knowledge_a.id}/search/?q=هوش مصنوعی")
