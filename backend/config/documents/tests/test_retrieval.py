@@ -64,6 +64,7 @@ def test_keyword_retriever_orders_chunks_by_matching_terms(workspace):
     
     assert len(results) == 2
     assert all(chunk.document.knowledge_base_id == knowledge_base_a.id for chunk in results)
+    assert results[0].score >= results[1].score
     
 def test_keyword_retriever_term_must_returns_results_by_high_score(workspace):
     user, knowledge_base_a, knowledge_base_b = workspace
@@ -82,7 +83,7 @@ def test_keyword_retriever_term_must_returns_results_by_high_score(workspace):
     results = list(retriever.search(query="هوش مصنوعی تشخیص بیماری", knowledge_id=knowledge_base_a.id))
     
     assert len(results) == 2
-    assert all(chunk.document.knowledge_base.id for chunk in results)
+    assert all(chunk.document.knowledge_base.id == knowledge_base_a.id for chunk in results)
     assert results[0].content == "هوش مصنوعی در پزشکی به تشخیص بیماری کمک می\u200cکند."
     assert results[0].content != "پایتون برای توسعه وب استفاده می‌شود."
     
@@ -105,7 +106,7 @@ def test_keyword_retriever_gets_results_high_score_by_matching_term(workspace):
     results = list(retriever.search(query="هوش مصنوعی تشخیص بیماری", knowledge_id=knowledge_base_a.id))
         
     assert results[0].score > results[1].score
-    assert all(chunk.document.knowledge_base.id for chunk in results)
+    assert all(chunk.document.knowledge_base.id == knowledge_base_a.id for chunk in results)
     
 @pytest.mark.django_db
 def test_keyword_retriever_returns_results_null_when_no_matching_term(workspace):
@@ -141,3 +142,27 @@ def test_keyword_retriever_returns_only_best_result_when_limit_is_one(workspace)
     assert results[0].score == 4
     assert len(results) == 1
     assert results[0].content == "هوش مصنوعی در پزشکی به تشخیص بیماری کمک می\u200cکند."
+
+@pytest.mark.django_db
+def test_keyword_retriever_returns_no_results_for_whitespace_query(workspace):
+    user, knowledge_base_a, knowledge_base_b = workspace
+
+    retriever = KeywordRetriever()
+    results = list(retriever.search(query="   ", knowledge_id=knowledge_base_a.id))
+
+    assert results == []
+
+@pytest.mark.django_db
+def test_keyword_retriever_must_return_results_ordered_correctly(workspace):
+    user, knowledge_base_a, knowledge_base_b = workspace
+
+    retriever = KeywordRetriever()
+    results = list(retriever.search(query="هوش مصنوعی", knowledge_id=knowledge_base_a.id))
+
+    expected_ids = list(
+        Document.objects.filter(knowledge_base=knowledge_base_a).order_by("id").values_list("id", flat=True)
+    )
+
+    assert [
+        chunk.document_id for chunk in results
+    ] == expected_ids
