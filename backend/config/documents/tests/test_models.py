@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth.models import User
 from workspaces.models import Workspace
 from knowledge_bases.models import KnowledgeBase
-from documents.models import Document
+from documents.models import Document, DocumentChunk
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 
@@ -160,3 +160,81 @@ class DocumentModelTest(TestCase):
                                         file_type=Document.FileType.PDF,
                                         created_by=self.user_a)
         assert str(document_a) == "AI Fundamentals"
+        
+    def test_document_create_chunks_without_embedding(self):
+        uploaded_file = SimpleUploadedFile("AI.pdf", b"content test", content_type="application/pdf")
+        document_a = Document.objects.create(title="AI Fundamentals", 
+                                        knowledge_base=self.knowledge_a, 
+                                        file=uploaded_file,
+                                        file_type=Document.FileType.PDF,
+                                        created_by=self.user_a)
+        
+        chunk_1 = DocumentChunk.objects.create(document=document_a,
+                                            content="This is chunk test one.",
+                                            index=0,
+                                            embedding=None)
+        chunk_2 = DocumentChunk.objects.create(document=document_a,
+                                            content="This is chunk test two.",
+                                            index=1,
+                                            embedding=None)
+        
+        assert document_a.chunks.count() == 2
+        assert all(
+            chunk.embedding == None for chunk in document_a.chunks.all()
+        )
+        
+    def test_document_create_chunks_with_embedding(self):
+        uploaded_file = SimpleUploadedFile("AI.pdf", b"content test", content_type="application/pdf")
+        document_a = Document.objects.create(title="AI Fundamentals", 
+                                        knowledge_base=self.knowledge_a, 
+                                        file=uploaded_file,
+                                        file_type=Document.FileType.PDF,
+                                        created_by=self.user_a)
+        
+        chunk_1 = DocumentChunk.objects.create(document=document_a,
+                                            content="This is chunk test one.",
+                                            index=0,
+                                            embedding=[0.2,0.5,0.4])
+        chunk_1.refresh_from_db()
+        
+        chunk_2 = DocumentChunk.objects.create(document=document_a,
+                                            content="This is chunk test two.",
+                                            index=1,
+                                            embedding=[0.3,-0.5,-0.1])
+        chunk_2.refresh_from_db()
+        
+        assert document_a.chunks.count() == 2
+        assert document_a.chunks.all()[0].embedding == [0.2,0.5,0.4]
+        assert document_a.chunks.all()[1].embedding == [0.3,-0.5,-0.1]
+        
+    def test_document_chunks_store_and_restore_embeddings(self):
+        uploaded_file = SimpleUploadedFile("AI.pdf", b"content test", content_type="application/pdf")
+        document_a = Document.objects.create(title="AI Fundamentals", 
+                                        knowledge_base=self.knowledge_a, 
+                                        file=uploaded_file,
+                                        file_type=Document.FileType.PDF,
+                                        created_by=self.user_a)
+        
+        chunk_1 = DocumentChunk.objects.create(document=document_a,
+                                            content="This is chunk test one.",
+                                            index=0,
+                                            embedding=None)
+        chunk_2 = DocumentChunk.objects.create(document=document_a,
+                                            content="This is chunk test two.",
+                                            index=1,
+                                            embedding=None)
+        
+        assert document_a.chunks.count() == 2
+        
+        chunk_1.embedding = [0.2,0.5,0.4]
+        chunk_1.save()
+        
+        chunk_1.refresh_from_db()
+        
+        assert chunk_1.embedding == [0.2,0.5,0.4]
+        
+        chunk_2.embedding = [0.3,-0.5,-0.1]
+        chunk_2.save()
+        
+        chunk_2.refresh_from_db()
+        assert chunk_2.embedding == [0.3,-0.5,-0.1]

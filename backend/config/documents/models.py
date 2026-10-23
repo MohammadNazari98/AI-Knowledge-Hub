@@ -47,6 +47,7 @@ class DocumentChunk(models.Model):
     document = models.ForeignKey(Document, related_name="chunks", on_delete=models.CASCADE)
     content = models.TextField()
     index = models.PositiveIntegerField()
+    embedding = models.JSONField(blank=True, null=True, default=None)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
