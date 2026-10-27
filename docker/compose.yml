@@ -1,0 +1,15 @@
+services:
+  db:
+    image: pgvector/pgvector:0.8.7-pg18-trixie
+    container_name: pgvector
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ai_knowledge_hub
+      POSTGRES_USER: ai_kh_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?SET POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql
+volumes:
+  pgvector_data:

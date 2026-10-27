@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from knowledge_bases.models import KnowledgeBase
 from pathlib import Path
 from django.core.exceptions import ValidationError
+from pgvector.django import VectorField
 
 class Document(models.Model):
     class Status(models.TextChoices):
@@ -47,7 +48,7 @@ class DocumentChunk(models.Model):
     document = models.ForeignKey(Document, related_name="chunks", on_delete=models.CASCADE)
     content = models.TextField()
     index = models.PositiveIntegerField()
-    embedding = models.JSONField(blank=True, null=True, default=None)
+    embedding = VectorField(dimensions=384, blank=True, null=True, default=None)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
