@@ -4,16 +4,22 @@ from documents.services.exceptions import DocumentProcessingError
 from documents.models import Document, DocumentChunk
 from documents.services.validators import FileValidator
 from documents.services.chunking import TextChunker
+from documents.services.embedding import EmbeddingService
 from django.db import transaction
+
+
 
 class DocumentProcessor:
     """Coordinate document text extraction."""
-    def __init__(self):
+    def __init__(self, embedding_service=None):
         self.extractors = {
             "pdf": PDFExtractor(),
             "txt": TXTExtractor()
         }
         self.validator = FileValidator()
+        self.embedding_service = (
+            embedding_service if embedding_service is not None else EmbeddingService()
+        )
         
     def process(self, document: Document)->str:
         try:
@@ -51,6 +57,7 @@ class DocumentProcessor:
                 DocumentChunk(
                     document=document,
                     content=chunk,
+                    embedding=self.embedding_service.get_embedding(chunk).squeeze(0).tolist(),
                     index=i
                 )
                 for i, chunk in enumerate(chunks)

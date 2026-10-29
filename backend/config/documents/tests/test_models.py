@@ -191,21 +191,23 @@ class DocumentModelTest(TestCase):
                                         file_type=Document.FileType.PDF,
                                         created_by=self.user_a)
         
+        embedding_1 = [0.2] * 384
+        embedding_2 = [0.3] * 384
         chunk_1 = DocumentChunk.objects.create(document=document_a,
                                             content="This is chunk test one.",
                                             index=0,
-                                            embedding=[0.2,0.5,0.4])
+                                            embedding=embedding_1)
         chunk_1.refresh_from_db()
         
         chunk_2 = DocumentChunk.objects.create(document=document_a,
                                             content="This is chunk test two.",
                                             index=1,
-                                            embedding=[0.3,-0.5,-0.1])
+                                            embedding=embedding_2)
         chunk_2.refresh_from_db()
         
         assert document_a.chunks.count() == 2
-        assert document_a.chunks.all()[0].embedding == [0.2,0.5,0.4]
-        assert document_a.chunks.all()[1].embedding == [0.3,-0.5,-0.1]
+        assert document_a.chunks.all()[0].embedding == embedding_1
+        assert document_a.chunks.all()[1].embedding == embedding_2
         
     def test_document_chunks_store_and_restore_embeddings(self):
         uploaded_file = SimpleUploadedFile("AI.pdf", b"content test", content_type="application/pdf")
@@ -226,15 +228,18 @@ class DocumentModelTest(TestCase):
         
         assert document_a.chunks.count() == 2
         
-        chunk_1.embedding = [0.2,0.5,0.4]
+        embedding_1 = [0.2] * 384
+        embedding_2 = [0.3] * 384
+
+        chunk_1.embedding = embedding_1
         chunk_1.save()
         
         chunk_1.refresh_from_db()
         
-        assert chunk_1.embedding == [0.2,0.5,0.4]
+        assert chunk_1.embedding == embedding_1
         
-        chunk_2.embedding = [0.3,-0.5,-0.1]
+        chunk_2.embedding = embedding_2
         chunk_2.save()
         
         chunk_2.refresh_from_db()
-        assert chunk_2.embedding == [0.3,-0.5,-0.1]
+        assert chunk_2.embedding == embedding_2

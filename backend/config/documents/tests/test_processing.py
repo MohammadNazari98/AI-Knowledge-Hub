@@ -11,10 +11,26 @@ from reportlab.pdfgen import canvas
 from documents.services.exceptions import DocumentProcessingError
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+import torch
 
 
 
+class FakeEmbeddingService:
+    def get_embedding(self, text, prefix="passage: "):
+        assert text.strip()
+        assert prefix == "passage: "
+        return torch.Tensor([[0.1] * 384])
 
+@pytest.fixture
+def fake_embedding_service():
+    return FakeEmbeddingService()
+
+@pytest.fixture(autouse=True)
+def mock_embedding_service(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        "documents.services.extractors.processor.EmbeddingService",
+        FakeEmbeddingService,
+    )
 @pytest.mark.django_db    
 def test_text_extractor_processes_when_retrieves_txt_file_and_return_str_text_correctly():
     user = User.objects.create_user(username="usertestA", password="passwordtestA")
@@ -550,3 +566,44 @@ def test_document_processor_removes_old_chunks_when_extracted_content_is_empty()
     chunks = DocumentChunk.objects.filter(document=document)
     assert chunks.count() == 0
     assert not chunks.exists()
+
+@pytest.mark.django_db
+def test_document_processor_saves_embedding_for_each_chunk():
+    user = User.objects.create_user(
+        username="embedding_test_user",
+        password="passwordtestA",
+    )
+    workspace = Workspace.objects.create(name="Embedding Workspace")
+    workspace.members.add(user)
+
+    knowledge_base = KnowledgeBase.objects.create(
+        name="Embedding Knowledge Base",
+        workspace=workspace,
+        created_by=user,
+    )
+
+    uploaded_file = SimpleUploadedFile(
+        "embedding.txt",
+        b"Artificial intelligence helps diagnose diseases.",
+    )
+
+    document = Document.objects.create(
+        title="Embedding Test",
+        knowledge_base=knowledge_base,
+        file=uploaded_file,
+        file_type=Document.FileType.TXT,
+        created_by=user,
+    )
+
+    processor = DocumentProcessor()
+
+    processor.process(document)
+
+    chunks = list(document.chunks.order_by("index"))
+
+    assert chunks
+    assert all(chunk.embedding is not None for chunk in chunks)
+    assert all(
+        chunk.embedding == [0.1] * 384
+        for chunk in chunks
+    )
