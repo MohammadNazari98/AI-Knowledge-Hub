@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from knowledge_bases.models import KnowledgeBase
 from pathlib import Path
 from django.core.exceptions import ValidationError
-
+from pgvector.django import VectorField
 
 class Document(models.Model):
     class Status(models.TextChoices):
@@ -42,3 +42,20 @@ class Document(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["knowledge_base", "title"], name="unique_document_title_per_knowledge_base")
         ]
+        
+        
+class DocumentChunk(models.Model):
+    document = models.ForeignKey(Document, related_name="chunks", on_delete=models.CASCADE)
+    content = models.TextField()
+    index = models.PositiveIntegerField()
+    embedding = VectorField(dimensions=384, blank=True, null=True, default=None)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["index"]
+        constraints = [
+            models.UniqueConstraint(fields=["document", "index"], name="unique_chunk_index_per_document")
+        ]
+        
+    def __str__(self):
+        return f"{self.document.title} - Chunk {self.index}"
