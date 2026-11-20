@@ -76,3 +76,35 @@ def test_embedding_must_raise_value_error_for_empty_text(embedding_service):
 def test_embedding_must_raise_value_error_for_whitespace_text(embedding_service):
     with pytest.raises(ValueError):
         embedding_service.get_embedding("   ")
+
+def test_embedding_must_use_query_prefix_when_requested(embedding_service, monkeypatch: pytest.MonkeyPatch):
+    text = "هوش مصنوعی"
+    received_text = []
+
+    def fake_tokenize(text: str):
+        received_text.append(text)
+        return {
+            "input_ids": torch.tensor([[1, 2]]),
+            "attention_mask": torch.tensor([[1, 1]]),
+        }
+
+    def fake_model(**tokens):
+        return SimpleNamespace(
+            last_hidden_state=torch.ones((1, 2, 384))
+        )
+
+    monkeypatch.setattr(
+        embedding_service,
+        "tokenize",
+        fake_tokenize,
+    )
+
+    monkeypatch.setattr(
+        embedding_service,
+        "model",
+        fake_model,
+    )
+
+    embedding_service.get_embedding(text)
+
+    assert received_text == ["passage: هوش مصنوعی"]
