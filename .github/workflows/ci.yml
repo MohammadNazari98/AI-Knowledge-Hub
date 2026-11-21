@@ -11,6 +11,28 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg18-trixie
+        env:
+          POSTGRES_DB: ai_knowledge_hub
+          POSTGRES_USER: ai_kh_user
+          POSTGRES_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U ai_kh_user -d ai_knowledge_hub"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5s
+
+    env:
+      DB_NAME: ai_knowledge_hub
+      DB_USER: ai_kh_user
+      DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5433
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
