@@ -7,7 +7,8 @@ from knowledge_bases.models import KnowledgeBase
 from workspaces.models import Workspace
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-
+def mock_process(self, document):
+    return ""
 
 @pytest.mark.django_db
 def test_user_a_can_sees_list_documents_from_owner_workspace(client: APIClient):
@@ -122,7 +123,7 @@ def test_user_a_cannot_creates_a_new_document_in_another_knowledge_base_and_must
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     
 @pytest.mark.django_db
-def test_user_a_creates_a_new_document_in_the_knowledge_and_must_return_201(client: APIClient):
+def test_user_a_creates_a_new_document_in_the_knowledge_and_must_return_201(client: APIClient, monkeypatch: pytest.MonkeyPatch):
     user_a = User.objects.create_user("testuserA", "testpasswordA")
     workspace_a = Workspace.objects.create(name="Python AI")
     workspace_a.members.add(user_a)
@@ -131,6 +132,11 @@ def test_user_a_creates_a_new_document_in_the_knowledge_and_must_return_201(clie
                                                 created_by=user_a)
     client.force_login(user=user_a)
     uploaded_file = SimpleUploadedFile("python-basics.pdf", b"test content", content_type="application/pdf")
+    
+    monkeypatch.setattr(
+        "documents.views.DocumentProcessor.process",
+        mock_process
+    )
     response = client.post("/api/documents/", data={
         "title": "Python basics", 
         "knowledge_base": knowledge_base_a.id,
@@ -140,7 +146,7 @@ def test_user_a_creates_a_new_document_in_the_knowledge_and_must_return_201(clie
     assert response.status_code == status.HTTP_201_CREATED
     
 @pytest.mark.django_db
-def test_user_a_creates_a_new_document_in_workspace_a_through_on_user_b_payload_and_must_return_201(client: APIClient):
+def test_user_a_creates_a_new_document_in_workspace_a_through_on_user_b_payload_and_must_return_201(client: APIClient, monkeypatch: pytest.MonkeyPatch):
     user_a = User.objects.create_user("testuserA", "testpasswordA")
     user_b = User.objects.create_user("testuserB", "testpasswordB")
     workspace_a = Workspace.objects.create(name="Python AI")
@@ -150,6 +156,12 @@ def test_user_a_creates_a_new_document_in_workspace_a_through_on_user_b_payload_
                                                 workspace=workspace_a,
                                                 created_by=user_a)
     client.force_login(user=user_a)
+    
+    monkeypatch.setattr(
+            "documents.views.DocumentProcessor.process",
+            mock_process
+        )
+    
     uploaded_file = SimpleUploadedFile("python-basics.pdf", b"test content", content_type="application/pdf")
     response = client.post("/api/documents/", data={
         "title": "Python basics", 
@@ -166,7 +178,7 @@ def test_user_a_creates_a_new_document_in_workspace_a_through_on_user_b_payload_
     
     
 @pytest.mark.django_db
-def test_user_a_updates_document_from_knowledge_a_to_knowledge_b_and_must_return_400(client: APIClient):
+def test_user_a_updates_document_from_knowledge_a_to_knowledge_b_and_must_return_400(client: APIClient, monkeypatch: pytest.MonkeyPatch):
     user_a = User.objects.create_user("testuserA", "testpasswordA")
     workspace_a = Workspace.objects.create(name="Python AI")
     workspace_a.members.add(user_a)
@@ -182,6 +194,12 @@ def test_user_a_updates_document_from_knowledge_a_to_knowledge_b_and_must_return
                                                 created_by=user_b)
     api_client = APIClient()
     api_client.force_authenticate(user=user_a)
+    
+    monkeypatch.setattr(
+            "documents.views.DocumentProcessor.process",
+            mock_process
+        )
+    
     uploaded_file = SimpleUploadedFile("python-basics.pdf", b"test content", content_type="application/pdf")
     response = api_client.post("/api/documents/", data={
         "title": "Python basics", 
@@ -336,7 +354,7 @@ def test_user_can_edit_document_and_must_return_200(client: APIClient):
     assert response.data["title"] == "Advanced RAG"
     
 @pytest.mark.django_db
-def test_user_can_creates_document_and_should_not_duplicate_document(client: APIClient):
+def test_user_can_creates_document_and_should_not_duplicate_document(client: APIClient, monkeypatch: pytest.MonkeyPatch):
     user_a = User.objects.create_user("testuserA", "testpasswordA")
     workspace_a = Workspace.objects.create(name="Python AI")
     workspace_a.members.add(user_a)
@@ -345,6 +363,11 @@ def test_user_can_creates_document_and_should_not_duplicate_document(client: API
                                                 created_by=user_a)
     
     client.force_login(user_a)
+    
+    monkeypatch.setattr(
+            "documents.views.DocumentProcessor.process",
+            mock_process
+        )
     
     uploaded_file = SimpleUploadedFile("python_expert.pdf", content=b"test content", content_type="application/pdf")
     response = client.post(f"/api/documents/", data={

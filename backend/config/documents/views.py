@@ -4,6 +4,7 @@ from rest_framework.viewsets import ModelViewSet
 from .serializers import DocumentSerializer
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.serializers import Serializer
+from documents.services.extractors.processor import DocumentProcessor
 
 
 class DocumentAPIViewSet(ModelViewSet):
@@ -14,4 +15,6 @@ class DocumentAPIViewSet(ModelViewSet):
         return Document.objects.filter(knowledge_base__workspace__members=self.request.user).order_by("-created_at")
     
     def perform_create(self, serializer: Serializer):
-        serializer.save(created_by=self.request.user)
+        document = serializer.save(created_by=self.request.user)
+        document_processor = DocumentProcessor()
+        document_processor.process(document)
